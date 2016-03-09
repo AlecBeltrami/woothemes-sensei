@@ -1297,10 +1297,13 @@ class Sensei_Utils {
 					}
 				}
 				// Lesson/Quiz requires a pass
-				elseif( $pass_required ) {
+				if( $pass_required  ) {
 					$status = 'not_started';
 					$box_class = 'info';
-					if( $is_lesson ) {
+
+					if( ! Sensei_Lesson::is_prerequisite_complete( $lesson_id, get_current_user_id() ) ) {
+						$message = '';
+					}  else if( $is_lesson ) {
 						$message = sprintf( __( 'You require %1$d%% to pass this lesson\'s quiz.', 'woothemes-sensei' ),  Sensei_Utils::round( $quiz_passmark ) );
 					} else {
 						$message = sprintf( __( 'You require %1$d%% to pass this quiz.', 'woothemes-sensei' ),  Sensei_Utils::round( $quiz_passmark ) );
@@ -1385,21 +1388,47 @@ class Sensei_Utils {
 	 */
 	public static function user_started_course( $course_id = 0, $user_id = 0 ) {
 
+		$user_started_course = false;
+
 		if( $course_id ) {
+
 			if( ! $user_id ) {
 				$user_id = get_current_user_id();
 			}
 
-            if( ! $user_id > 0 ){
-                return false;
-            }
+            if ( ! $user_id > 0 ) {
 
-			$user_course_status_id = Sensei_Utils::sensei_get_activity_value( array( 'post_id' => $course_id, 'user_id' => $user_id, 'type' => 'sensei_course_status', 'field' => 'comment_ID' ) );
-			if( $user_course_status_id ) {
-				return $user_course_status_id;
-			}
+	            $user_started_course =  false;
+
+            } else {
+
+	            $activity_args = array(
+		            'post_id' => $course_id,
+		            'user_id' => $user_id,
+		            'type' => 'sensei_course_status',
+		            'field' => 'comment_ID'
+	            );
+
+				$user_course_status_id = Sensei_Utils::sensei_get_activity_value( $activity_args );
+
+				if ( $user_course_status_id ) {
+
+					$user_started_course = $user_course_status_id;
+
+				}
+            }
 		}
-		return false;
+
+		/**
+		 * Filter the user started course value
+		 *
+		 * @since 1.9.3
+		 *
+		 * @param bool $user_started_course
+		 * @param integer $course_id
+		 */
+		return apply_filters( 'sensei_user_started_course', $user_started_course, $course_id, $user_id );
+
 	}
 
 	/**
@@ -1619,12 +1648,16 @@ class Sensei_Utils {
                 }
 				$_user_lesson_status = Sensei_Utils::user_lesson_status( $lesson, $user_id );
 
-				if ( $_user_lesson_status ) {
+				if ( isset( $_user_lesson_status->comment_approved ) ) {
+
 					$user_lesson_status = $_user_lesson_status->comment_approved;
-				}
-				else {
+
+				}  else {
+
 					return false; // No status means not complete
+
 				}
+
 				$lesson_id = $lesson;
 			}
 			if ( 'in-progress' != $user_lesson_status ) {

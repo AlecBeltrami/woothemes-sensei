@@ -255,20 +255,29 @@ class Sensei_Lesson {
 		if ( !current_user_can( $post_type->cap->edit_post, $post_id ) ) {
 			return $post_id;
 		} // End If Statement
+
 		// Check if the current post type is a page
 		if ( 'page' == $_POST[ 'post_type' ] ) {
+
 			if ( ! current_user_can( 'edit_page', $post_id ) ) {
+
 				return $post_id;
+
 			} // End If Statement
 		} else {
 			if ( ! current_user_can( 'edit_post', $post_id ) ) {
 				return $post_id;
 			} // End If Statement
 		} // End If Statement
+
 		// Save the post meta data fields
 		if ( isset($this->meta_fields) && is_array($this->meta_fields) ) {
+
 			foreach ( $this->meta_fields as $meta_key ) {
+
+				remove_action( 'save_post', array( $this, 'meta_box_save') );
 				$this->save_post_meta( $meta_key, $post_id );
+
 			} // End For Loop
 		} // End If Statement
 	} // End meta_box_save()
@@ -2824,7 +2833,7 @@ class Sensei_Lesson {
 		// Get Width and Height settings
 		if ( ( $width == '100' ) && ( $height == '100' ) ) {
 
-			if ( is_singular( 'lesson' ) ) {
+			if ( is_singular( 'lesson' ) || !empty( $lesson_id  ) ) {
 
 				if ( ! $widget && ! Sensei()->settings->settings[ 'lesson_single_image_enable' ] ) {
 
@@ -3324,7 +3333,7 @@ class Sensei_Lesson {
 
                 }
 
-                if ( $single_lesson_complete ) {
+                if ( Sensei_Utils::user_completed_lesson( $lesson_id, get_current_user_id() ) ) {
 
                     $meta_html .= '<span class="lesson-status complete">' .__( 'Complete', 'woothemes-sensei' ) .'</span>';
 
@@ -3589,7 +3598,7 @@ class Sensei_Lesson {
         if ( ! WooThemes_Sensei_Lesson::is_prerequisite_complete(  get_the_ID(), get_current_user_id() ) && $lesson_has_pre_requisite ) {
 
             $prerequisite_lesson_link  = '<a href="' . esc_url( get_permalink( $lesson_prerequisite ) ) . '" title="' . esc_attr(  sprintf( __( 'You must first complete: %1$s', 'woothemes-sensei' ), get_the_title( $lesson_prerequisite ) ) ) . '">' . get_the_title( $lesson_prerequisite ). '</a>';
-            echo sprintf( __( 'You must first complete %1$s before viewing this Lesson', 'woothemes-sensei' ), $prerequisite_lesson_link );
+            Sensei()->notices->add_notice( sprintf( __( 'You must first complete %1$s before viewing this Lesson', 'woothemes-sensei' ), $prerequisite_lesson_link ), 'info');
 
         }
 
@@ -3617,7 +3626,21 @@ class Sensei_Lesson {
 
         $before_html = '<header class="archive-header"><h1>';
         $after_html = '</h1></header>';
-        $html = $before_html .  __( 'Lessons Archive', 'woothemes-sensei' ) . $after_html;
+
+	    $title= '';
+	    if ( is_post_type_archive( 'lesson' ) ){
+
+	        $title = __( 'Lessons Archive', 'woothemes-sensei' );
+
+	    } elseif ( is_tax( 'module' ) ) {
+
+		    global $wp_query;
+		    $term = $wp_query->get_queried_object();
+		    $title = $term->name;
+
+	    }
+
+        $html = $before_html . $title . $after_html;
 
         echo apply_filters( 'sensei_lesson_archive_title', $html );
 
@@ -3806,7 +3829,11 @@ class Sensei_Lesson {
             // Display lesson quiz status message
             if ( $has_user_completed_lesson || $has_quiz_questions ) {
                 $status = Sensei_Utils::sensei_user_quiz_status_message( $lesson_id, $user_id, true );
-                echo '<div class="sensei-message ' . $status['box_class'] . '">' . $status['message'] . '</div>';
+
+	            if( ! empty( $status['message']  ) ){
+	                echo '<div class="sensei-message ' . $status['box_class'] . '">' . $status['message'] . '</div>';
+                }
+
                 if( $has_quiz_questions ) {
                    // echo $status['extra'];
                 } // End If Statement
@@ -3825,7 +3852,7 @@ class Sensei_Lesson {
      */
     public static function limit_archive_content ( $content ){
 
-        if( is_archive('lesson') && Sensei()->settings->get('access_permission') ){
+        if( is_post_type_archive( 'lesson' ) && Sensei()->settings->get('access_permission') ){
 
             return wp_trim_words( $content, $num_words = 30, $more = '…' );
         }

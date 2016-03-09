@@ -82,7 +82,7 @@ add_action( 'sensei_single_course_content_inside_after', array( 'Sensei_Template
 add_action( 'sensei_single_message_content_inside_after', array( 'Sensei_Templates', 'deprecated_single_main_content_hook') );
 
 /**
- * Deprecate all the post type single titile hooks in favor of before content and after content hooks
+ * Deprecate all the post type single title hooks in favor of before content and after content hooks
  *
  * @deprecate 1.9.0
  * @1.9.0
@@ -264,7 +264,7 @@ add_action( 'sensei_single_lesson_content_inside_after', array( 'Sensei_Template
 
 // @since 1.9.0
 // hook in the lesson prerequisite completion message
-add_action( 'sensei_single_lesson_content_inside_after', array( 'Sensei_Lesson', 'prerequisite_complete_message' ), 20 );
+add_action( 'sensei_single_lesson_content_inside_before', array( 'Sensei_Lesson', 'prerequisite_complete_message' ), 20 );
 
 // @since 1.9.0
 // hook the single lesson course_signup_link
@@ -313,6 +313,10 @@ add_action( 'sensei_loop_lesson_inside_before', array( Sensei()->lesson, 'the_ar
 // @since 1.9.0
 //Output the lesson header on the content-lesson.php which runs inside the lessons loop
 add_action( 'sensei_content_lesson_inside_before', array( 'Sensei_Lesson', 'the_lesson_meta' ), 20 );
+
+// @since 1.9.3
+//Output the lesson featured image
+add_action('sensei_content_lesson_inside_before', array( 'Sensei_Lesson','the_lesson_thumbnail'), 30);
 
 // @since 1.9.0
 // output only part of the lesson on the archive
