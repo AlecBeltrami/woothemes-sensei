@@ -397,6 +397,8 @@ class Sensei_Utils {
 
 	/**
 	 * Save quiz answers submitted by users
+	 *
+	 * @deprecated since 1.9.4 use Sensei_Quiz::save_user_answers
 	 * @param  array $submitted User's quiz answers
      * @param int $user_id
 	 * @return boolean            Whether the answers were saved or not
@@ -1273,9 +1275,8 @@ class Sensei_Utils {
 
                 }
 
-			}
-            // Lesson/Quiz not complete
-			else {
+			} else {  // Lesson/Quiz not complete
+
 				// Lesson/Quiz isn't "complete" instead it's ungraded (previously this "state" meant that it *was* complete)
 				if ( isset( $user_lesson_status->comment_approved ) && 'ungraded' == $user_lesson_status->comment_approved ) {
 					$status = 'complete';
@@ -1297,7 +1298,7 @@ class Sensei_Utils {
 					}
 				}
 				// Lesson/Quiz requires a pass
-				if( $pass_required  ) {
+				elseif ( $pass_required  ) {
 					$status = 'not_started';
 					$box_class = 'info';
 
@@ -1423,6 +1424,8 @@ class Sensei_Utils {
 		 * Filter the user started course value
 		 *
 		 * @since 1.9.3
+		 *
+		 * @hooked Sensei_WC::get_subscription_user_started_course
 		 *
 		 * @param bool $user_started_course
 		 * @param integer $course_id
