@@ -99,6 +99,9 @@ class Sensei_Course {
         // flush rewrite rules when saving a course
         add_action('save_post', array( 'Sensei_Course', 'flush_rewrite_rules' ) );
 
+		// Allow course archive to be setup as the home page
+		add_action( 'pre_get_posts', array( $this, 'allow_course_archive_on_front_page' ) );
+
 	} // End __construct()
 
 	/**
@@ -1132,7 +1135,7 @@ class Sensei_Course {
 			$variation_parent_courses = get_posts( self::get_product_courses_query_args( $product_id ) );
 
 			if ( ! empty( $variation_parent_courses ) ) {
-				$courses = array_merge( $courses, $variation_parent_courses );
+				$courses           = array_merge( $courses, $variation_parent_courses );
 			}
 
 			foreach ( $variations as $variation ) {
@@ -1735,7 +1738,13 @@ class Sensei_Course {
             $user_id = get_current_user_id();
         }
 
-        echo '<span class="progress statement  course-completion-rate">' . $this->get_progress_statement( $course_id, $user_id  ) . '</span>';
+	    $progress_statement = $this->get_progress_statement( $course_id, $user_id  );
+	    if( ! empty( $progress_statement ) ){
+
+		    echo '<span class="progress statement  course-completion-rate">' . $progress_statement . '</span>';
+
+	    }
+
     }
 
     /**
@@ -2186,9 +2195,9 @@ class Sensei_Course {
              * archive
              *
              * @since 1.9.0
-             * @param integer $posts_per_page default 10
+             * @param integer $posts_per_page defaults to the value of get_option( 'posts_per_page' )
              */
-            $query->set( 'posts_per_page', apply_filters( 'sensei_archive_courses_per_page', 10 ) );
+            $query->set( 'posts_per_page', apply_filters( 'sensei_archive_courses_per_page', get_option( 'posts_per_page' ) ) );
 
         }
         // for the my courses page
@@ -2661,6 +2670,7 @@ class Sensei_Course {
         }
 
         $course_lesson_query_args = array(
+	        'post_status'       => 'publish',
             'post_type'         => 'lesson',
             'posts_per_page'    => 500,
             'orderby'           => 'date',
@@ -2671,7 +2681,6 @@ class Sensei_Course {
                     'value' => intval( $course_id ),
                 ),
             ),
-            'post_status'       => 'public',
             'suppress_filters'  => 0,
         );
 
@@ -2836,7 +2845,7 @@ class Sensei_Course {
 	                $anchor_before = '<a href="' . esc_url( sensei_user_login_url() ) . '" >';
 	                $anchor_after = '</a>';
 	                $notice = sprintf(
-		                __('or log in to view this courses. Click here to %slogin%s.'),
+		                __('or %slog in%s to view this course.', 'woothemes-sensei'),
 		                $anchor_before,
 		                $anchor_after
 	                );
@@ -2915,7 +2924,7 @@ class Sensei_Course {
         if ( '' != $course_video_embed ) { ?>
 
             <div class="course-video">
-                <?php echo html_entity_decode($course_video_embed); ?>
+                <?php echo do_shortcode( html_entity_decode( $course_video_embed ) ); ?>
             </div>
 
         <?php } // End If Statement
@@ -2970,7 +2979,7 @@ class Sensei_Course {
 
         if( ! empty($term) ){
 
-            $title = $term->name;
+            $title = __('Category') . ' ' . $term->name;
 
         }else{
 
@@ -2979,7 +2988,7 @@ class Sensei_Course {
         }
 
         $html = '<h2 class="sensei-category-title">';
-        $html .= __('Category') . ' ' . $title;
+        $html .=  $title;
         $html .= '</h2>';
 
         echo apply_filters( 'course_category_title', $html , $term->term_id );
@@ -3057,6 +3066,61 @@ class Sensei_Course {
         return true;
 
     }// end is_prerequisite_complete
+
+	/**
+	 * Allowing user to set course archive page as front page
+	 *
+	 * @since 1.9.5
+	 * @param WP_Query $query hooked in from pre_get_posts
+	 */
+	function allow_course_archive_on_front_page( $query ) {
+
+		global $wp;
+
+		// avoid infinite loop
+		remove_action( 'pre_get_posts', array( $this, 'allow_course_archive_on_front_page' ) );
+
+		$query_check = clone $query;
+		$posts = $query_check->get_posts();
+		$possible_home_page = array_shift( $posts );
+
+		// check all conditions
+		$not_a_valid_static_front_page = 0 == intval( get_option( 'page_on_front' ) )
+		                                 || is_admin()
+		                                 || ! $query->is_main_query()
+		                                 || ! empty( $wp->query_string )
+		                                 || ! isset( $possible_home_page->ID )
+		                                 || 'page' !=$possible_home_page->post_type
+		                                 || $possible_home_page->ID != get_option( 'page_on_front' ) ;
+
+		if ( $not_a_valid_static_front_page ) {
+			// add action again to check subsequent calls
+			add_action( 'pre_get_posts', array( $this, 'allow_course_archive_on_front_page' ) );
+			return;
+
+		}
+
+		// for a valid post that doesn't have any of the old short codes set the archive the same
+		// as the page URI
+		$settings_course_page = get_post( Sensei()->settings->get( 'course_page' ) );
+		if( ! is_a( $settings_course_page, 'WP_Post')
+		    ||  Sensei()->post_types->has_old_shortcodes( $settings_course_page->post_content )
+			|| $settings_course_page->ID != get_option( 'page_on_front' ) ){
+
+			return;
+
+		}
+
+
+		$query->set( 'post_type', 'course' );
+		$query->set( 'page_id', '' );
+
+		// Set properties to match an archive
+		$query->is_page              = 0;
+		$query->is_singular          = 0;
+		$query->is_post_type_archive = 1;
+		$query->is_archive           = 1;
+	}
 
 
 }// End Class
