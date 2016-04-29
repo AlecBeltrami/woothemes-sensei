@@ -74,8 +74,8 @@ class Sensei_Core_Modules
         // Manage module taxonomy archive page
         add_filter('template_include', array($this, 'module_archive_template'), 10);
         add_action('pre_get_posts', array($this, 'module_archive_filter'), 10, 1);
-        add_filter('sensei_lessons_archive_text', array($this, 'module_archive_title'));
-        add_action('sensei_content_lesson_inside_before', array($this, 'module_archive_description'), 11);
+        add_filter('sensei_lessons_archive_text', array($this, 'module_archive_title') );
+        add_action('sensei_loop_lesson_inside_before', array($this, 'module_archive_description'), 30 );
         add_action('sensei_pagination', array($this, 'module_navigation_links'), 11);
         add_filter('body_class', array($this, 'module_archive_body_class'));
 
@@ -347,6 +347,9 @@ class Sensei_Core_Modules
     public function save_module_course($module_id)
     {
 
+	    if( isset( $_POST['action'] ) && 'inline-save-tax' == $_POST['action'] ) {
+		    return;
+	    }
         // Get module's existing courses
         $args = array(
             'post_type' => 'course',
@@ -585,6 +588,9 @@ class Sensei_Core_Modules
      */
     public function module_archive_description()
     {
+	    //ensure this only shows once on the archive.
+	    remove_action( 'sensei_loop_lesson_before', array( $this,'module_archive_description' ), 30 );
+
         if (is_tax($this->taxonomy)) {
 
             $module = get_queried_object();
@@ -1291,7 +1297,9 @@ class Sensei_Core_Modules
             'edit-tags.php',
             'course_page_module-order',
             'post-new.php',
-            'post.php'
+            'post.php',
+	        'term.php',
+
         ) );
 
         if ( ! in_array( $hook, $script_on_pages_white_list ) ) {
@@ -1353,10 +1361,6 @@ class Sensei_Core_Modules
      * @return void
      */
     public function load_course_module_content_template(){
-
-	    if ( ! is_singular( 'course' )  ) {
-		    return;
-	    }
 
         // load backwards compatible template name if it exists in the users theme
         $located_template= locate_template( Sensei()->template_url . 'single-course/course-modules.php' );

@@ -159,18 +159,30 @@ if ( ! defined( 'ABSPATH' ) ){ exit; } // Exit if accessed directly
 	 */
 	function sensei_simple_course_price( $post_id ) {
 
-		//WooCommerce Pricing
-        if ( Sensei_WC::is_woocommerce_active() ) {
-    	    $wc_post_id = get_post_meta( $post_id, '_course_woocommerce_product', true );
-    	    if ( 0 < $wc_post_id ) {
-    	    	// Get the product
-    	    	$product = Sensei()->sensei_get_woocommerce_product_object( $wc_post_id );
+		global $wp_the_query;
 
-    	    	if ( isset( $product ) && !empty( $product )  &&  $product->is_purchasable() && $product->is_in_stock() && !sensei_check_if_product_is_in_cart( $wc_post_id ) ) { ?>
-    	    		<span class="course-price"><?php echo $product->get_price_html(); ?></span>
-    	    	<?php } // End If Statement
-    	    } // End If Statement
-    	} // End If Statement
+		// check for the my courses shortcode
+		if ( strpos( $wp_the_query->post->post_content, 'sensei_user_courses' ) || strpos( $wp_the_query->post->post_content, 'usercourses' ) ) {
+			return;
+		}
+
+		$wc_post_id = get_post_meta( $post_id, '_course_woocommerce_product', true );
+        if ( ! Sensei_WC::is_woocommerce_active() || empty( $wc_post_id ) || false  ) {
+			return;
+        }
+
+        // Get the product
+        $product = Sensei_WC::get_product_object( $wc_post_id );
+
+        if ( isset( $product ) && !empty( $product )  &&  $product->is_purchasable()
+             && $product->is_in_stock() && !sensei_check_if_product_is_in_cart( $wc_post_id ) ) { ?>
+
+            <span class="course-price">
+	            <?php echo $product->get_price_html(); ?>
+            </span>
+
+        <?php } // End If Statement
+
 	} // End sensei_simple_course_price()
 
 	/**
@@ -392,24 +404,9 @@ function sensei_has_user_completed_prerequisite_lesson( $current_lesson_id, $use
  * @return bool
  *
  */
-function sensei_have_modules( $course_post_id = '' ){
+function sensei_have_modules(  ){
 
-	global $post, $wp_query, $sensei_modules_loop;
-
-	// set the current course to be the global post again
-	wp_reset_query();
-	$post = $wp_query->post;
-
-	if( empty( $course_post_id ) ){
-
-		$course_id = $post->ID;
-
-	}
-
-	// doesn't apply to none course post types
-	if( ! sensei_is_a_course( $course_id )  ){
-		return false;
-	}
+	global $sensei_modules_loop;
 
 	// check the current item compared to the total number of modules
 	if( $sensei_modules_loop[ 'current' ] + 1 > $sensei_modules_loop[ 'total' ]  ){
@@ -937,6 +934,15 @@ function sensei_the_single_lesson_meta(){
  */
 function get_sensei_header(){
 
+	/**
+	 * Allow user to stop the output of
+	 * get_sensei_header which also includes a call to get_header.
+	 * @since 1.9.5 introduced
+	 */
+	if ( ! apply_filters( 'sensei_show_main_header', true ) ) {
+		return;
+	}
+
     if ( ! defined( 'ABSPATH' ) ) exit;
 
     get_header();
@@ -961,6 +967,15 @@ function get_sensei_header(){
  * @since 1.9.0
  */
 function get_sensei_footer(){
+
+	/**
+	 * Allow user to stop the output of
+	 * get_sensei_footer which also includes a call to get_header.
+	 * @since 1.9.5 introduced
+	 */
+	if ( ! apply_filters( 'sensei_show_main_footer', true ) ) {
+		return;
+	}
 
     /**
      * sensei_pagination hook

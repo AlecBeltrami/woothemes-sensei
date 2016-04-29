@@ -459,6 +459,10 @@ class Sensei_Lesson {
 			$new_meta_value = ( isset( $_POST[$post_key] ) ? sanitize_html_class( $_POST[$post_key] ) : '' );
 		} // End If Statement
 
+		//quick edit work around
+		if ( 'lesson_preview' == $post_key &&  isset( $_POST['action'] ) && $_POST['action'] =='inline-save' ) {
+			$new_meta_value = '-1';
+		}
         // update field with the new value
         if( -1 != $new_meta_value  ){
             return update_post_meta( $post_id, $meta_key, $new_meta_value );
@@ -1886,7 +1890,7 @@ class Sensei_Lesson {
 		// Question Save and Delete logic
 		if ( isset( $question_data['action'] ) && ( $question_data['action'] == 'delete' ) ) {
 			// Delete the Question
-			$return = $this->lesson_delete_question($question_data);
+			$return = $this->lesson_remove_question($question_data);
 		} else {
 			// Save the Question
 			if ( isset( $question_data['quiz_id'] ) && ( 0 < absint( $question_data['quiz_id'] ) ) ) {
@@ -1974,20 +1978,27 @@ class Sensei_Lesson {
 		} // End If Statement
 
 		if( ! wp_verify_nonce( $nonce, 'lesson_remove_multiple_questions_nonce' )
-        || ! current_user_can( 'edit_lessons' ) ) {
+        || ! current_user_can( 'edit_lessons' ) || ! isset( $_POST['data'] ) ) {
 			die('');
 		} // End If Statement
 
 		// Parse POST data
-		$data = $_POST['data'];
 		$question_data = array();
-		parse_str( $data, $question_data );
+		parse_str( $_POST['data'], $question_data );
 
-		if( is_array( $question_data ) ) {
-			wp_delete_post( $question_data['question_id'], true );
+		$question_id_to_remove      = $question_data['question_id'];
+		$quiz_id_to_be_removed_from = $question_data['quiz_id'];
+
+		// remove the question from the lesson quiz
+		$quizzes = get_post_meta( $question_id_to_remove, '_quiz_id', false );
+		foreach( $quizzes as $quiz_id ) {
+			if( $quiz_id == $quiz_id_to_be_removed_from  ) {
+				delete_post_meta( $question_id_to_remove, '_quiz_id', $quiz_id );
+				die( 'Deleted' );
+			}
 		}
 
-		die( 'Deleted' );
+		die('');
 	}
 
 	public function get_question_category_limit() {
@@ -2446,33 +2457,36 @@ class Sensei_Lesson {
 
 
 	/**
-	 * lesson_delete_question function.
+	 * Remove question from lesson
 	 *
 	 * @access private
 	 * @param array $data (default: array())
 	 * @return boolean
 	 */
-	private function lesson_delete_question( $data = array() ) {
+	private function lesson_remove_question( $data = array() ) {
 
 		// Get which question to delete
 		$question_id = 0;
 		if ( isset( $data[ 'question_id' ] ) && ( 0 < absint( $data[ 'question_id' ] ) ) ) {
 			$question_id = absint( $data[ 'question_id' ] );
 		} // End If Statement
-		// Delete the question
-		if ( 0 < $question_id ) {
-			$quizzes = get_post_meta( $question_id, '_quiz_id', false );
 
-			foreach( $quizzes as $quiz_id ) {
-				if( $quiz_id == $data['quiz_id'] ) {
-					delete_post_meta( $question_id, '_quiz_id', $quiz_id );
-				}
+		if ( empty( $question_id ) ) {
+			return false;
+		}
+
+		// remove the question from the lesson quiz
+		$quizzes = get_post_meta( $question_id, '_quiz_id', false );
+
+		foreach( $quizzes as $quiz_id ) {
+			if( $quiz_id == $data['quiz_id'] ) {
+				delete_post_meta( $question_id, '_quiz_id', $quiz_id );
 			}
+		}
 
-			return true;
-		} // End If Statement
-		return false;
-	} // End lesson_delete_question()
+		return true;
+
+	}
 
 
 	/**
@@ -2859,25 +2873,34 @@ class Sensei_Lesson {
 
 		} // End If Statement
 
-		$img_url = '';
+		$img_element = '';
 
 		if ( has_post_thumbnail( $lesson_id ) ) {
 
-   			// Get Featured Image
-   			$img_url = get_the_post_thumbnail( $lesson_id, array( $width, $height ), array( 'class' => 'woo-image thumbnail alignleft') );
+			// Get Featured Image
+			$img_element = get_the_post_thumbnail( $lesson_id, array( $width, $height ), array( 'class' => 'woo-image thumbnail alignleft') );
 
  		} else {
 
  			// Display Image Placeholder if none
 			if ( Sensei()->settings->settings[ 'placeholder_images_enable' ] ) {
 
-                $img_url = apply_filters( 'sensei_lesson_placeholder_image_url', '<img src="http://placehold.it/' . $width . 'x' . $height . '" class="woo-image thumbnail alignleft" />' );
+                $img_element = apply_filters( 'sensei_lesson_placeholder_image_url', '<img src="http://placehold.it/' . $width . 'x' . $height . '" class="woo-image thumbnail alignleft" />' );
 
 			} // End If Statement
 
 		} // End If Statement
 
-		$html .= '<a href="' . get_permalink( $lesson_id ) . '" title="' . esc_attr( get_post_field( 'post_title', $lesson_id ) ) . '">' . $img_url . '</a>';
+		if ( is_singular( 'lesson' ) ) {
+
+			$html .=  $img_element;
+
+		} else {
+
+			$html .= '<a href="' . get_permalink( $lesson_id ) . '" title="' . esc_attr( get_post_field( 'post_title', $lesson_id ) ) . '">' . $img_element . '</a>';
+
+		}
+
 
 		return $html;
 
@@ -3779,16 +3802,11 @@ class Sensei_Lesson {
      */
     public static function output_comments(){
 
-        if( ! is_user_logged_in() ){
-            return;
-        }
-
-        $pre_requisite_complete = Sensei()->lesson->is_prerequisite_complete( get_the_ID(), get_current_user_id() );
         $course_id = Sensei()->lesson->get_course_id( get_the_ID() );
         $allow_comments = Sensei()->settings->settings[ 'lesson_comments' ];
         $user_taking_course = Sensei_Utils::user_started_course($course_id );
 
-        $lesson_allow_comments = $allow_comments && $pre_requisite_complete  && $user_taking_course;
+        $lesson_allow_comments = $allow_comments  && $user_taking_course;
 
         if (  $lesson_allow_comments || is_singular( 'sensei_message' ) ) {
 
